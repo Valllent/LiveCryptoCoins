@@ -1,5 +1,7 @@
 package com.valllent.websocket.di
 
+import android.content.Context
+import android.net.ConnectivityManager
 import com.valllent.websocket.network.CoinsRepository
 import com.valllent.websocket.network.ConfiguredHttpClient
 import com.valllent.websocket.ui.screens.MainScreenViewModel
@@ -12,7 +14,7 @@ object MainModule {
     operator fun invoke(): Module {
         return module {
             viewModel {
-                MainScreenViewModel(get())
+                MainScreenViewModel(get(), get())
             }
 
             single {
@@ -20,6 +22,10 @@ object MainModule {
             }
             single {
                 ConfiguredHttpClient.create()
+            }
+            single {
+                val context = get<Context>()
+                context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             }
         }
     }
