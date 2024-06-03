@@ -1,6 +1,9 @@
 package com.valllent.websocket.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
@@ -9,8 +12,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.inset
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -20,6 +31,8 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import com.valllent.websocket.R
 import com.valllent.websocket.data.Coin
+import kotlin.math.abs
+import kotlin.math.min
 
 
 data class MainScreenState(
@@ -55,8 +68,7 @@ fun MainScreenView(
     state: MainScreenState,
     actions: MainScreenActions,
 ) {
-    LoadingWrapper(state, actions) { coinsState ->
-        val coins = coinsState.coins
+    LoadingWrapper(state, actions) {
         Column(
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -69,8 +81,126 @@ fun MainScreenView(
                     .height(1.dp),
                 color = Color.Red,
             )
+
+            LineChart(state, actions)
         }
     }
+}
+
+
+/**
+ * @param dots percentages from 0 to 1
+ */
+data class LineGraphData(
+    val min: Float,
+    val max: Float,
+    val dots: List<Float>,
+)
+
+@Composable
+private fun LineChart(
+    state: MainScreenState,
+    actions: MainScreenActions,
+    maxPrices: Int = 10,
+    dotSizeDp: Int = 4,
+) {
+    val lineGraphData = LineGraphData(
+        min = 1220.50f,
+        max = 2165.62f,
+        dots = listOf(
+            0.95f,
+            0.3f,
+            0.25f,
+            0.75f,
+            0.1f,
+            0.85f,
+            0.2f
+        )
+    )
+    val dots = lineGraphData.dots
+
+
+    Text(
+        modifier = Modifier
+            .padding(end = 8.dp)
+            .fillMaxWidth(),
+        text = stringResource(id = R.string.bitcoin).uppercase(),
+        maxLines = 1,
+        textAlign = TextAlign.Center,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+    )
+
+    Canvas(
+        modifier = Modifier
+            .padding(16.dp)
+            .fillMaxWidth()
+            .height(250.dp)
+            .clip(CircleShape.copy(CornerSize(8.dp))),
+    ) {
+        val padding = 16.dp.toPx()
+        drawRect(
+            brush = SolidColor(Color.LightGray),
+            size = Size(size.width, size.height),
+        )
+        withTransform({
+            inset(horizontal = padding + 10f, vertical = padding)
+        }) {
+            drawLine(
+                brush = SolidColor(Color.Blue),
+                start = Offset(0f, 0f),
+                end = Offset(size.width, 0f),
+                strokeWidth = 2.dp.toPx(),
+            )
+            drawLine(
+                brush = SolidColor(Color.Red),
+                start = Offset(0f, size.height),
+                end = Offset(size.width, size.height),
+                strokeWidth = 2.dp.toPx(),
+            )
+
+            var previousDotHeight: Float? = null
+            val dotsCount = min(maxPrices, dots.size)
+            for (i in 0 until dotsCount) {
+                val paddingBetweenDots = size.width / (dotsCount - 1)
+                val dotWidth = paddingBetweenDots * i
+                val dotHeight = abs(dots[i] - 1f) * size.height
+
+                if (previousDotHeight != null) {
+                    val growing = previousDotHeight > dotHeight
+                    drawLine(
+                        color = if (growing) Color.Blue else Color.Red,
+                        start = Offset(dotWidth - paddingBetweenDots, previousDotHeight),
+                        end = Offset(dotWidth, dotHeight),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
+                    )
+                }
+
+                drawCircle(
+                    brush = SolidColor(Color.Red),
+                    radius = dotSizeDp.dp.toPx(),
+                    center = Offset(dotWidth, dotHeight),
+                )
+
+                previousDotHeight = dotHeight
+            }
+        }
+    }
+
+    Text(
+        modifier = Modifier.fillMaxWidth(),
+        text = String.format("%.2f", lineGraphData.max),
+        textAlign = TextAlign.Center,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.Blue,
+    )
+    Text(
+        modifier = Modifier.fillMaxWidth(),
+        text = String.format("%.2f", lineGraphData.min),
+        textAlign = TextAlign.Center,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.Red,
+    )
 }
 
 @Composable
@@ -160,11 +290,11 @@ private fun HeaderWithLivePrices(state: MainScreenState, actions: MainScreenActi
 private fun LoadingWrapper(
     state: MainScreenState,
     actions: MainScreenActions,
-    content: @Composable (CoinsState.Downloaded) -> Unit,
+    content: @Composable () -> Unit,
 ) {
     when (state.coinsState) {
         is CoinsState.Downloaded -> {
-            content(state.coinsState)
+            content()
         }
 
         is CoinsState.Loading -> {
