@@ -25,7 +25,7 @@ data class PricesResponse(
     private fun addCoinToList(coinPrice: String?, coinName: String, list: MutableList<Coin>) {
         if (coinPrice == null) return
 
-        val price = coinPrice.toDoubleOrNull()
+        val price = coinPrice.toFloatOrNull()
         if (price != null) {
             list.add(Coin(coinName, price))
         }

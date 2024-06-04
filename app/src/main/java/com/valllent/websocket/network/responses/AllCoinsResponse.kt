@@ -19,7 +19,7 @@ data class AllCoinsResponse(
         val responseArray = data ?: emptyList()
 
         for (coin in responseArray) {
-            val price = coin.priceUsd?.toDoubleOrNull() ?: 0.0
+            val price = coin.priceUsd?.toFloatOrNull() ?: 0.0f
             result.add(Coin(coin.id ?: continue, price))
         }
 

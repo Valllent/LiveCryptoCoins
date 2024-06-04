@@ -2,8 +2,10 @@ package com.valllent.websocket.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
@@ -31,6 +33,8 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import com.valllent.websocket.R
 import com.valllent.websocket.data.Coin
+import com.valllent.websocket.data.LineGraphData
+import com.valllent.websocket.utils.LineGraphManager
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -38,6 +42,7 @@ import kotlin.math.min
 data class MainScreenState(
     val coinsState: CoinsState,
     val updatesState: UpdatesState,
+    val lineGraphData: LineGraphData?,
 )
 
 sealed class UpdatesState {
@@ -70,7 +75,9 @@ fun MainScreenView(
 ) {
     LoadingWrapper(state, actions) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
         ) {
             HeaderWithLivePrices(state, actions)
 
@@ -82,43 +89,23 @@ fun MainScreenView(
                 color = Color.Red,
             )
 
-            LineChart(state, actions)
+            if (state.lineGraphData != null) {
+                LineChart(state.lineGraphData)
+            }
         }
     }
 }
 
 
-/**
- * @param dots percentages from 0 to 1
- */
-data class LineGraphData(
-    val min: Float,
-    val max: Float,
-    val dots: List<Float>,
-)
 
 @Composable
 private fun LineChart(
-    state: MainScreenState,
-    actions: MainScreenActions,
-    maxPrices: Int = 10,
+    lineGraphData: LineGraphData,
+    maxPrices: Int = LineGraphManager.LIMIT,
+    heightDp: Int = 300,
     dotSizeDp: Int = 4,
 ) {
-    val lineGraphData = LineGraphData(
-        min = 1220.50f,
-        max = 2165.62f,
-        dots = listOf(
-            0.95f,
-            0.3f,
-            0.25f,
-            0.75f,
-            0.1f,
-            0.85f,
-            0.2f
-        )
-    )
     val dots = lineGraphData.dots
-
 
     Text(
         modifier = Modifier
@@ -135,7 +122,7 @@ private fun LineChart(
         modifier = Modifier
             .padding(16.dp)
             .fillMaxWidth()
-            .height(250.dp)
+            .height(heightDp.dp)
             .clip(CircleShape.copy(CornerSize(8.dp))),
     ) {
         val padding = 16.dp.toPx()

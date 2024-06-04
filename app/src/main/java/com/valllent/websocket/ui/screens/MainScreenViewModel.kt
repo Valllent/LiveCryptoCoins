@@ -8,11 +8,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.valllent.websocket.data.Coin
 import com.valllent.websocket.network.CoinsRepository
-import kotlinx.coroutines.Dispatchers
+import com.valllent.websocket.utils.LineGraphManager
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 
 class MainScreenViewModel(
@@ -23,6 +23,7 @@ class MainScreenViewModel(
     private val _state = createDefaultState()
     val state = _state.asStateFlow()
 
+    private val lineGraphManager = LineGraphManager()
     private var networkReconnectionCallback: ConnectivityManager.NetworkCallback? = null
 
     init {
@@ -50,10 +51,14 @@ class MainScreenViewModel(
         return MutableStateFlow(
             MainScreenState(
                 coinsState = CoinsState.Loading,
-                updatesState = UpdatesState.Disconnected
+                updatesState = UpdatesState.Disconnected,
+                lineGraphData = null
             )
         )
     }
+
+
+    private val allCoins = mutableListOf<Coin>()
 
     private fun loadAllCoins() {
         viewModelScope.launch {
@@ -65,37 +70,56 @@ class MainScreenViewModel(
                 return@launch
             }
 
-            _state.update { it.copy(coinsState = CoinsState.Downloaded(coins)) }
+            allCoins.addAll(coins)
+            _state.update { it.copy(coinsState = CoinsState.Downloaded(allCoins)) }
             createUpdatesConnection()
         }
     }
 
     private fun createUpdatesConnection() {
+        startLineGraphCalculations()
+
         viewModelScope.launch(Dispatchers.IO) {
             val coinsFlow = coinsRepository.getCoinUpdatesFlow()
 
             _state.update { it.copy(updatesState = UpdatesState.Connected) }
             coinsFlow.collect { newPrices ->
-                _state.update { it.copy(coinsState = CoinsState.Downloaded(updatePrices(newPrices))) }
+                val coins = updatePrices(newPrices)
+                _state.update { it.copy(coinsState = CoinsState.Downloaded(coins)) }
             }
+            graphLineCalculationJob?.cancel()
             _state.update { it.copy(updatesState = UpdatesState.Disconnected) }
 
             reconnectWhenInternetReturn()
         }
     }
 
-    private fun updatePrices(newPrices: List<Coin>): List<Coin> {
-        val state = state.value.coinsState as? CoinsState.Downloaded ?: return emptyList()
-        val oldPrices = state.coins.toMutableList()
-
-        for (newPrice in newPrices) {
-            val oldPriceIndex = oldPrices.indexOfFirst { oldPrice ->
-                newPrice.name == oldPrice.name
+    private fun updatePrices(newCoinPrices: List<Coin>): List<Coin> {
+        for (coin in newCoinPrices) {
+            val index = allCoins.indexOfFirst { it.name == coin.name }
+            allCoins[index] = coin
+            if (coin.name == "bitcoin") {
+                lineGraphManager.savePrice(coin.price)
             }
-            oldPrices[oldPriceIndex] = newPrice
         }
 
-        return oldPrices
+        return allCoins
+    }
+
+    private var graphLineCalculationJob: Job? = null
+
+    private fun startLineGraphCalculations() {
+        graphLineCalculationJob?.cancel()
+        graphLineCalculationJob = viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                _state.update {
+                    it.copy(
+                        lineGraphData = lineGraphManager.calculateGraphData()
+                    )
+                }
+                delay(1_000)
+            }
+        }
     }
 
     private fun reconnectWhenInternetReturn() {
